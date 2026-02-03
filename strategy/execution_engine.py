@@ -82,12 +82,16 @@ class ExecutionEngine:
         if not signal: return
             
         send_log(f"¡Señal TRIPLE ALINEACIÓN en {symbol}: {signal}!", "log-success")
+        
+        # Guardar señal en historial
+        self.save_signal_to_history(symbol, signal)
+        
         self.telegram.send_message(
             f"🏛️ *SEÑAL INSTITUCIONAL*\n\n"
             f"💎 *Moneda:* {symbol}\n"
             f"🚀 *Dirección:* {signal}\n"
             f"✅ Diario: Tendencia OK\n"
-            f"✅ 1 Hora: ADX > 25 (Fuerte)\n"
+            f"✅ 1 Hora: ADX > 15 (Activo)\n"
             f"✅ 5 Min: Cruce + Volumen"
         )
         
@@ -122,3 +126,43 @@ class ExecutionEngine:
         self.client.place_order(symbol, signal, "Market", qty, sl=sl, tp=tp)
         msg_final = f"✅ *Orden Ejecutada (5x)*\n{symbol} {signal}\nSL: {sl:.4f}"
         self.telegram.send_message(msg_final)
+
+    def save_signal_to_history(self, symbol, direction):
+        """Guarda la señal en un archivo JSON para el historial del dashboard."""
+        import json
+        import os
+        from datetime import datetime
+        
+        history_file = "data/signal_history.json"
+        
+        # Crear directorio si no existe
+        os.makedirs("data", exist_ok=True)
+        
+        # Cargar historial existente
+        if os.path.exists(history_file):
+            with open(history_file, "r") as f:
+                try:
+                    history = json.load(f)
+                except:
+                    history = []
+        else:
+            history = []
+        
+        # Agregar nueva señal
+        signal_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "symbol": symbol,
+            "direction": direction,
+            "time": time.strftime("%H:%M:%S")
+        }
+        
+        history.insert(0, signal_entry)
+        
+        # Limitar a últimas 100 señales
+        if len(history) > 100:
+            history = history[:100]
+        
+        # Guardar
+        with open(history_file, "w") as f:
+            json.dump(history, f, indent=2)
+
