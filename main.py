@@ -5,10 +5,8 @@ import time
 import yaml
 from core.bybit_client import BybitClient
 from core.telegram_bot import TelegramBot
-from core.risk_manager import RiskManager
-from core.memory_manager import MemoryManager
 from strategy.execution_engine import ExecutionEngine
-from dashboard.app import start_dashboard, update_ui, send_log, bot_data
+from dashboard.app import update_ui, send_log, bot_data
 
 def load_config():
     with open("config", "r") as f:
@@ -16,127 +14,99 @@ def load_config():
 
 def bot_loop():
     config = load_config()
-    print("--- INICIANDO BOT DE TRADING IA (BYBIT) ---")
+    print("========================================")
+    print("   BOT DE SEÑALES - MERCADO REAL")
+    print("   Exchange: Bitget (Sin ejecución)")
+    print("========================================\n")
     
-    # Variables de seguimiento de operaciones
-    prev_positions = {} # symbol -> position_data
-    total_pnl = 0.0
-    win_count = 0
-    loss_count = 0
-    closed_trades = []
+    # Variables de control
+    señales_enviadas_hora = []
+    ultima_limpieza = time.time()
     
-    # Inicializar componentes
-    client = BybitClient(
-        testnet=config['trading'].get('testnet', False),
-        demo=config['trading'].get('demo', True)
-    )
+    # Inicializar clientes (SIEMPRE mercado real, sin demo)
+    client = BybitClient(testnet=False, demo=False)
     telegram = TelegramBot()
-    risk_manager = RiskManager(config)
-    memory_manager = MemoryManager()
-    engine = ExecutionEngine(client, risk_manager, memory_manager, config, telegram)
+    engine = ExecutionEngine(client, None, None, config, telegram)
     
+    # Mensaje de inicio
     telegram.send_message(
-        "🚀 *SISTEMA IA INICIADO* 🚀\n\n"
-        "✅ *BOT IA:* Triple Pantalla (1D/1H/5m)\n"
-        "📡 *Conexión Telegram:* ESTABLE\n"
-        "🐺 *El lobo está cazando...*\n\n"
-        "🔔 *PRUEBA DE ALERTA: Si lees esto, el sistema funciona.*"
+        "🎯 *BOT DE SEÑALES ACTIVADO* 🎯\n\n"
+        "📊 *Modo:* Solo Señales (NO ejecuta operaciones)\n"
+        "📡 *Exchange:* Bitget Mercado Real\n"
+        "🔍 *Estrategia:* Triple Pantalla (1D/1H/5m)\n"
+        "📲 *Alertas:* Vía Telegram\n\n"
+        "✅ Sistema listo. Escaneando mercado..."
     )
-    
     
     try:
         while True:
             if not bot_data["is_running"]:
-                print("Bot en pausa (esperando inicio desde Dashboard)...")
                 time.sleep(5)
                 continue
 
-            # Recargar configuración para aplicar cambios desde la UI
-            with open("config/config.yaml", "r") as f:
-                config = yaml.safe_load(f)
+            # Limpiar contador cada hora
+            if time.time() - ultima_limpieza > 3600:
+                señales_enviadas_hora = []
+                ultima_limpieza = time.time()
+
+            # Recargar config
+            config = load_config()
             engine.config = config
-            engine.risk_manager.config = config
-            engine.trend_analyzer.config = config
-
-            balance = client.get_balance()
-            btc_trend = engine.trend_analyzer.analyze_btc_filter()
-            posiciones = client.get_active_positions()
             
-            # Detectar operaciones cerradas
-            current_symbols = {p['symbol'] for p in posiciones}
-            for symbol, prev_p in list(prev_positions.items()):
-                if symbol not in current_symbols:
-                    # La posición se cerró. Intentamos obtener el PnL realizado.
-                    # Por ahora usamos el último PnL no realizado conocido o una estimación.
-                    # En una versión más avanzada, consultaríamos el historial de trades de Bybit.
-                    raw_pnl = prev_p.get('unrealisedPnl', 0)
-                    try:
-                        pnl = float(raw_pnl) if raw_pnl is not None and str(raw_pnl).strip() != "" else 0.0
-                    except (ValueError, TypeError):
-                        pnl = 0.0
-                    
-                    total_pnl += pnl
-                    if pnl > 0: win_count += 1
-                    else: loss_count += 1
-                    
-                    trade_info = {
-                        "symbol": symbol,
-                        "side": prev_p['side'],
-                        "pnl": f"{pnl:.2f}",
-                        "time": time.strftime("%H:%M:%S")
-                    }
-                    closed_trades.insert(0, trade_info)
-                    if len(closed_trades) > 10: closed_trades.pop()
-                    
-                    send_log(f"Operación CERRADA en {symbol}: PnL {pnl:.2f} USDT", "log-success" if pnl > 0 else "log-error")
-                    del prev_positions[symbol]
-            
-            # Actualizar posiciones previas
-            for p in posiciones:
-                prev_positions[p['symbol']] = p
-
-            # Actualizar UI
+            # UI simplificada
             update_ui({
-                "balance": f"{balance:.2f}",
-                "points": memory_manager.data["puntos_aprendizaje"],
-                "btc_trend": btc_trend,
-                "positions": posiciones,
-                "total_pnl": f"{total_pnl:.2f}",
-                "win_count": win_count,
-                "loss_count": loss_count,
-                "closed_trades": closed_trades
+                "balance": "N/A (Solo Señales)",
+                "points": 0,
+                "btc_trend": "---",
+                "positions": [],
+                "total_pnl": "0.00",
+                "win_count": 0,
+                "loss_count": 0,
+                "closed_trades": []
             })
             
-            send_log(f"Sincronización completa. Balance: {balance} USDT | PnL Total: {total_pnl:.2f}")
-            
-            # Obtener todos los símbolos del mercado
+            # Obtener pares del mercado REAL
             pares = client.get_all_symbols()
             if not pares:
-                send_log("No se encontraron pares USDT para escanear. Reintentando...", "log-error")
+                send_log("❌ Error obteniendo pares. Reintentando...", "log-error")
                 time.sleep(10)
                 continue
                 
-            send_log(f"🚀 ESCANEO INICIADO: {len(pares)} monedas encontradas", "log-success")
-            print(f"🚀 ESCANEO INICIADO: {len(pares)} monedas encontradas")
+            send_log(f"🔍 ESCANEO: {len(pares)} pares del mercado real", "log-success")
+            
+            max_señales = config.get('analisis', {}).get('max_señales_por_hora', 10)
+            escaneados = 0
             
             for par in pares:
                 if not bot_data["is_running"]: break
-                print(f"Analizando {par}...")
-                engine.execute_trade(par)
-                # No dormimos mucho aquí para escanear rápido, pero respetamos rate limit
-                time.sleep(0.5) 
+                if len(señales_enviadas_hora) >= max_señales:
+                    send_log(f"⏸️ Límite de {max_señales} señales/hora alcanzado", "log-warning")
+                    break
                 
-            send_log("Escaneo completo. Esperando siguiente ciclo...", "log-warning")
-            time.sleep(60) # Escaneo cada minuto
+                escaneados += 1
+                # SOLO DETECTAR - NO EJECUTAR
+                signal = engine.check_signal(par)
+                
+                if signal:
+                    engine.send_signal_only(par, signal)
+                    señales_enviadas_hora.append(time.time())
+                    send_log(f"✅ SEÑAL: {par} - {signal}", "log-success")
+                
+                if escaneados % 20 == 0:
+                    send_log(f"Progreso: {escaneados}/{len(pares)} pares analizados", "log-info")
+                
+                time.sleep(0.2)  # Rate limit
+                
+            intervalo = config.get('analisis', {}).get('escaneo_intervalo', 60)
+            send_log(f"✅ Escaneo completo. Siguiente en {intervalo}s", "log-success")
+            time.sleep(intervalo)
             
     except KeyboardInterrupt:
-        print("\nBot detenido por el usuario.")
-        telegram.send_message("⚠️ *Bot Detenido Manualmente*")
+        telegram.send_message("⏹️ *Bot de Señales Detenido*")
+        print("\nBot detenido.")
+
 if __name__ == "__main__":
-    # Iniciar el bucle del bot usando eventlet (mejor para SocketIO)
     eventlet.spawn(bot_loop)
-    
-    # Iniciar el Dashboard en el hilo principal
     from dashboard.app import run_server
-    print("Servidor iniciando en el hilo principal...")
+    print("Iniciando Dashboard...")
     run_server()

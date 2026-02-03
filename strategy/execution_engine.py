@@ -166,3 +166,58 @@ class ExecutionEngine:
         with open(history_file, "w") as f:
             json.dump(history, f, indent=2)
 
+    def send_signal_only(self, symbol, direction):
+        """Envía una señal detallada a Telegram SIN ejecutar ninguna operación."""
+        # Obtener datos para calcular SL/TP sugeridos
+        klines = self.client.get_kline(symbol=symbol, interval="5", limit=20)
+        if not klines:
+            return
+            
+        df = Indicators.klines_to_df(klines)
+        df = Indicators.add_indicators(df, self.config)
+        
+        last_candle = df.iloc[-1]
+        entry = float(last_candle['close'])
+        atr = float(last_candle.get('atr', entry * 0.02))  # 2% fallback
+        
+        # Calcular SL y TP sugeridos
+        sl_mult = self.config.get('riesgo', {}).get('stop_loss_atr_multiplicador', 2.0)
+        tp_ratio = self.config.get('riesgo', {}).get('take_profit_ratio', 3.0)
+        apal = self.config.get('riesgo', {}).get('apalancamiento_sugerido', 5)
+        
+        if direction == "Buy":
+            sl = entry - (atr * sl_mult)
+            tp = entry + (atr * sl_mult * tp_ratio)
+            emoji = "🟢"
+        else:
+            sl = entry + (atr * sl_mult)
+            tp = entry - (atr * sl_mult * tp_ratio)
+            emoji = "🔴"
+        
+        # Calcular % de riesgo/beneficio
+        risk_pct = abs((entry - sl) / entry) * 100
+        reward_pct = abs((tp - entry) / entry) * 100
+        
+        # Mensaje detallado para Telegram
+        mensaje = (
+            f"{emoji} *SEÑAL DETECTADA* {emoji}\n\n"
+            f"💎 *Moneda:* {symbol}\n"
+            f"📍 *Dirección:* {direction.upper()}\n"
+            f"💰 *Precio Entrada:* ${entry:.4f}\n\n"
+            f"🛡️ *Stop Loss:* ${sl:.4f} ({risk_pct:.2f}%)\n"
+            f"🎯 *Take Profit:* ${tp:.4f} ({reward_pct:.2f}%)\n"
+            f"⚡ *Apalancamiento Sugerido:* {apal}x\n"
+            f"📊 *Ratio R:R:* 1:{tp_ratio}\n\n"
+            f"✅ *Confirmaciones:*\n"
+            f"• Diario (1D): Tendencia Alineada\n"
+            f"• 1 Hora (1H): ADX > 15 (Activo)\n"
+            f"• 5 Minutos (5m): Cruce EMA + Volumen\n\n"
+            f"⚠️ *IMPORTANTE:* Esta es solo una alerta.\n"
+            f"Abre la operación manualmente en Bitget."
+        )
+        
+        self.telegram.send_message(mensaje)
+        self.save_signal_to_history(symbol, direction)
+        
+        send_log(f"📤 Señal enviada: {symbol} {direction}", "log-success")
+
