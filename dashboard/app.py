@@ -1,24 +1,24 @@
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
 import threading
-import time
-import yaml
 import os
+import json
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Estado global compartido
 bot_data = {
-    "balance": "0.00",
+    "balance": "AI Grid Mode",
     "points": 0,
-    "btc_trend": "---",
+    "btc_trend": "Autónomo",
     "is_running": True,
     "positions": [],
     "total_pnl": 0.0,
     "win_count": 0,
     "loss_count": 0,
-    "closed_trades": []
+    "closed_trades": [],
+    "signal_history": []
 }
 
 @app.route('/')
@@ -35,34 +35,20 @@ def stop_bot():
     bot_data["is_running"] = False
     return jsonify(status="stopped")
 
-@app.route('/config', methods=['GET', 'POST'])
-def handle_config():
-    config_path = "config/config.yaml"
-    if request.method == 'POST':
-        new_config = request.json
-        with open(config_path, "w") as f:
-            yaml.dump(new_config, f)
-        return jsonify(status="success")
-    
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-    return jsonify(config)
-
-@app.route('/toggle_mode')
-def toggle_mode():
-    config_path = "config/config.yaml"
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-    
-    config['trading']['testnet'] = not config['trading']['testnet']
-    
-    with open(config_path, "w") as f:
-        yaml.dump(config, f)
-        
-    return jsonify(testnet=config['trading']['testnet'])
+@app.route('/signal_history')
+def get_signal_history():
+    """Retorna historial de señales para el dashboard"""
+    history_file = "data/signal_history.json"
+    if os.path.exists(history_file):
+        with open(history_file, "r") as f:
+            try:
+                history = json.load(f)
+                return jsonify(history[:20])  # Últimas 20 señales
+            except:
+                return jsonify([])
+    return jsonify([])
 
 def run_server():
-    # Render proporciona el puerto en la variable de entorno PORT
     port = int(os.environ.get("PORT", 5000))
     socketio.run(app, host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
@@ -70,10 +56,11 @@ def start_dashboard():
     thread = threading.Thread(target=run_server)
     thread.daemon = True
     thread.start()
-    print("Dashboard iniciado en http://localhost:5000")
+    print("Dashboard iniciado")
 
 def update_ui(data):
-    socketio.emit('update_data', data)
+    bot_data.update(data)
+    socketio.emit('update_data', bot_data)
 
 def send_log(message, type="log-info"):
     socketio.emit('new_log', {"message": message, "type": type})
