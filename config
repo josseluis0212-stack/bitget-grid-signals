@@ -1,21 +1,50 @@
-# Bot de Señales - Análisis de Mercado Real (Bitget)
-# Este bot NO ejecuta operaciones, solo envía alertas
-estrategia:
-  ema_lenta: 21
-  ema_rapida: 8
-  ema_tendencia: 200
-  adx_periodo: 14
-  adx_umbral: 15  # Umbral reducido para más señales
-  volumen_ma: 20
-  rsi_periodo: 14
-  temporalidad_diaria: D
-  temporalidad_ejecucion: '5'
+# Grid Trading Signal Bot - Bitget Perpetual Futures
+# Estrategia basada en tendencias fuertes con alto volumen
 
-analisis:
-  escaneo_intervalo: 60  # Segundos entre escaneos completos
-  max_señales_por_hora: 10  # Limitar spam de señales
+estrategia:
+  # Indicadores Multi-Timeframe (Shannon)
+  ema_rapida: 8
+  ema_lenta: 21
+  ema_tendencia: 200
   
-riesgo:
-  stop_loss_atr_multiplicador: 2.0
-  take_profit_ratio: 3.0  # Sugerencia de ratio R:R para señales
-  apalancamiento_sugerido: 5
+  # Fuerza de Tendencia (Murphy)
+  adx_periodo: 14
+  adx_umbral: 25  # Solo tendencias fuertes (no rango)
+  
+  # Momentum y Reversión
+  rsi_periodo: 14
+  rsi_alcista_min: 50
+  rsi_alcista_max: 70
+  rsi_bajista_min: 30
+  rsi_bajista_max: 50
+  
+  # Volatilidad (Elder/Tharp)
+  atr_periodo: 14
+  
+  # Volumen (Wyckoff)
+  volumen_ma: 20
+  volumen_multiplicador: 2.0  # Mínimo 2x el promedio
+  
+analisis:
+  escaneo_intervalo: 120  # 2 minutos entre escaneos
+  max_señales_por_hora: 5  # Calidad sobre cantidad
+  duracion_grid: 24  # Horas (1 día máximo)
+  
+grid:
+  # Parámetros de Grid (Ernest Chan - Quantitative Trading)
+  apalancamiento: 5
+  
+  # Cálculo de Rango (ATR-based)
+  # LONG: Inferior = Precio - (2*ATR), Superior = Precio + (6*ATR)
+  # SHORT: Superior = Precio + (2*ATR), Inferior = Precio - (6*ATR)
+  atr_inferior_multiplicador: 2
+  atr_superior_multiplicador: 6
+  
+  # Número de Grids según volatilidad
+  grids_volatilidad_baja: 15   # ATR/Precio < 2%
+  grids_volatilidad_media: 10  # ATR/Precio 2-4%
+  grids_volatilidad_alta: 7    # ATR/Precio > 4%
+  
+  # Stop Loss y Take Profit
+  sl_atr_multiplicador: 1.0   # Más allá del límite inferior/superior
+  tp_atr_multiplicador: 2.0   # Objetivo ambicioso
