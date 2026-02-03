@@ -22,7 +22,7 @@ riesgo:
 trading:
   apalancamiento: 5
   capital_total: 100
-  demo: true
+  demo: false
   max_operaciones_simultaneas: 5
   monto_por_operacion: 15
   pares_permitidos:
