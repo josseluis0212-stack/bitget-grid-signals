@@ -5,40 +5,40 @@ import time
 import yaml
 from core.bybit_client import BybitClient
 from core.telegram_bot import TelegramBot
-from strategy.grid_strategy import GridStrategy
+from strategy.autonomous_grid import AutonomousGridStrategy
 from dashboard.app import update_ui, send_log, bot_data
 
-def load_config():
-    with open("config", "r") as f:
-        return yaml.safe_load(f)
-
 def bot_loop():
-    config = load_config()
-    print("=" * 50)
-    print("   🤖 GRID TRADING SIGNAL BOT 🤖")
+    print("=" * 60)
+    print("   🧠 GRID AI - SISTEMA AUTÓNOMO INTELIGENTE 🧠")
     print("   Exchange: Bitget USDT Perpetual Futures")
-    print("   Mode: Trend-Following Grid Signals")
-    print("=" * 50 + "\n")
+    print("   Modo: Aprendizaje Continuo + Auto-Configuración")
+    print("=" * 60 + "\n")
     
-    # Variables de control
+    # Contadores
     señales_enviadas_hora = []
     ultima_limpieza = time.time()
+    escaneos_totales = 0
     
-    # Inicializar clientes (MERCADO REAL)
+    # IA AUTÓNOMA - Sin configuración usuario
     client = BybitClient(testnet=False, demo=False)
     telegram = TelegramBot()
-    grid_strategy = GridStrategy(client, config)
+    ai_strategy = AutonomousGridStrategy(client)
     
     # Mensaje de activación
     telegram.send_message(
-        "🤖 *GRID SIGNAL BOT ACTIVADO* 🤖\n\n"
-        "📊 *Tipo:* Señales de Grid Trading\n"
-        "📡 *Exchange:* Bitget USDT Perpetual\n"
-        "🔍 *Estrategia:* Tendencia Fuerte + Alto Volumen\n"
-        "📲 *Formato:* Configuración completa de Grid\n\n"
-        "✅ *ESCANEANDO MERCADO REAL...*\n"
-        "Recibirás señales cuando detecte oportunidades."
+        "🧠 *GRID AI - SISTEMA AUTÓNOMO* 🧠\n\n"
+        "🤖 *Modo:* Inteligencia Artificial\n"
+        "📊 *Exchange:* Bitget USDT Perpetual\n"
+        "🎯 *Estrategia:* Auto-Aprendizaje\n"
+        "📈 *Filtros:* Solo Tendencias Fuertes\n"
+        "⏱️ *Duración:* Max 24 horas por Grid\n\n"
+        "✅ *BOT FUNCIONAL 24/7*\n"
+        "Escaneando mercado completo...\n\n"
+        "🔔 *Esta es tu señal de prueba*"
     )
+    
+    print("✅ Señal de prueba enviada a Telegram")
     
     try:
         while True:
@@ -46,75 +46,72 @@ def bot_loop():
                 time.sleep(5)
                 continue
 
-            # Reset contador cada hora
+            # Reset contador horario
             if time.time() - ultima_limpieza > 3600:
                 señales_enviadas_hora = []
                 ultima_limpieza = time.time()
+                print(f"\n📊 Escaneos completados: {escaneos_totales}")
 
-            # Recargar config
-            config = load_config()
-            grid_strategy.config = config
-            
-            # UI simplificada
+            # UI
             update_ui({
-                "balance": "Grid Mode",
-                "points": 0,
+                "balance": "AI Mode",
+                "points": ai_strategy.ai.memory.get("signals_history", [])[:1],
                 "btc_trend": "Autónomo",
                 "positions": [],
-                "total_pnl": "0.00",
+                "total_pnl": f"{len(señales_enviadas_hora)}",
                 "win_count": 0,
                 "loss_count": 0,
                 "closed_trades": []
             })
             
-            # Obtener pares del mercado REAL
+            # ESCANEAR MERCADO COMPLETO
             pares = client.get_all_symbols()
             if not pares:
-                send_log("❌ Error obteniendo pares. Reintentando...", "log-error")
+                send_log("❌ Error - Reintentando...", "log-error")
                 time.sleep(10)
                 continue
                 
-            send_log(f"🔍 ESCANEO GRID: {len(pares)} pares analizando...", "log-success")
+            send_log(f"🔍 IA analizando {len(pares)} pares...", "log-success")
+            print(f"\n🔍 Escaneo #{escaneos_totales + 1} - {len(pares)} pares")
             
-            max_señales = config.get('analisis', {}).get('max_señales_por_hora', 5)
-            escaneados = 0
+            max_señales = 5  # IA: Calidad > Cantidad
             
-            for par in pares:
+            for i, par in enumerate(pares):
                 if not bot_data["is_running"]: break
                 if len(señales_enviadas_hora) >= max_señales:
-                    send_log(f"⏸️ Límite de {max_señales} señales/hora alcanzado", "log-warning")
+                    send_log(f"⏸️ Límite diario alcanzado ({max_señales} señales)", "log-warning")
                     break
                 
-                escaneados += 1
+                # IA ANALIZA
+                grid_config = ai_strategy.analyze_for_grid(par)
                 
-                # ANALIZAR PARA GRID
-                grid_params = grid_strategy.analyze_for_grid(par)
-                
-                if grid_params:
-                    # ENVIAR SEÑAL DE GRID
-                    send_grid_signal(telegram, grid_params)
+                if grid_config:
+                    # SEÑAL APROBADA POR IA
+                    send_grid_signal(telegram, grid_config)
                     señales_enviadas_hora.append(time.time())
-                    send_log(f"✅ GRID SIGNAL: {par} - {grid_params['direccion']}", "log-success")
+                    send_log(f"✅ SEÑAL IA: {par} ({grid_config.get('calidad', 'N/A')})", "log-success")
+                    print(f"📤 SEÑAL: {par} - {grid_config['direccion']} (Calidad: {grid_config.get('calidad', 'N/A')})")
                 
-                if escaneados % 25 == 0:
-                    send_log(f"Progreso: {escaneados}/{len(pares)}", "log-info")
+                if (i + 1) % 30 == 0:
+                    print(f"   Progreso: {i+1}/{len(pares)} ({len(señales_enviadas_hora)} señales)")
                 
-                time.sleep(0.2)  # Rate limit
-                
-            intervalo = config.get('analisis', {}).get('escaneo_intervalo', 120)
-            send_log(f"✅ Escaneo completo. Siguiente en {intervalo}s", "log-success")
-            time.sleep(intervalo)
+                time.sleep(0.15)  # Rate limit suave
+            
+            escaneos_totales += 1
+            send_log(f"✅ Escaneo #{escaneos_totales} completo. Próximo en 90s", "log-success")
+            print(f"✅ Escaneo completo. Señales: {len(señales_enviadas_hora)}/hora\n")
+            time.sleep(90)  # 1.5 min entre escaneos
             
     except KeyboardInterrupt:
-        telegram.send_message("⏹️ *Grid Signal Bot Detenido*")
+        telegram.send_message("⏹️ *Grid AI Detenido*")
         print("\nBot detenido.")
 
 def send_grid_signal(telegram, params):
-    """Envía señal de Grid Trading formateada a Telegram"""
+    """Formato de señal con métricas de IA"""
     emoji = "🟢" if params['direccion'] == "LONG" else "🔴"
     
     mensaje = (
-        f"{emoji} *SEÑAL DE GRID DETECTADA* {emoji}\n\n"
+        f"{emoji} *SEÑAL GRID AI* {emoji}\n\n"
         f"💎 *Moneda:* {params['symbol']}\n"
         f"📊 *Parámetro Superior:* ${params['parametro_superior']}\n"
         f"📉 *Parámetro Inferior:* ${params['parametro_inferior']}\n"
@@ -124,20 +121,20 @@ def send_grid_signal(telegram, params):
         f"🔢 *Número de Grids:* {params['numero_grids']}\n"
         f"🛡️ *Stop Loss:* ${params['stop_loss']}\n"
         f"🎯 *Take Profit:* ${params['take_profit']}\n"
-        f"⏱️ *Duración Sugerida:* {params['duracion_horas']} horas\n\n"
-        f"✅ *Confirmaciones:*\n"
-        f"• ADX: {params['adx']} (Tendencia Fuerte)\n"
-        f"• Volumen: {params['volumen_ratio']}x Promedio\n"
+        f"⏱️ *Duración:* {params['duracion_horas']}h\n\n"
+        f"🤖 *IA Metrics:*\n"
+        f"• Calidad: {params.get('calidad', 'N/A')}\n"
+        f"• ADX: {params['adx']} (Tendencia)\n"
+        f"• Vol: {params['volumen_ratio']}x\n"
         f"• RSI: {params['rsi']}\n"
         f"• Volatilidad: {params['volatilidad_pct']}%\n\n"
-        f"⚠️ *Configura este Grid manualmente en Bitget*"
+        f"⚙️ *Configurar en Bitget manualmente*"
     )
     
     telegram.send_message(mensaje)
-    print(f"\n📤 SEÑAL ENVIADA: {params['symbol']} {params['direccion']}")
 
 if __name__ == "__main__":
     eventlet.spawn(bot_loop)
     from dashboard.app import run_server
-    print("Iniciando Dashboard...")
+    print("Dashboard iniciando...")
     run_server()
