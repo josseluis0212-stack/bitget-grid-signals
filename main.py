@@ -11,7 +11,7 @@ from strategy.execution_engine import ExecutionEngine
 from dashboard.app import start_dashboard, update_ui, send_log, bot_data
 
 def load_config():
-    with open("config/config.yaml", "r") as f:
+    with open("config", "r") as f:
         return yaml.safe_load(f)
 
 def bot_loop():
