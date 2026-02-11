@@ -2,12 +2,12 @@ import time
 from core.exchange import BitgetConnector
 from core.telegram_notifier import TelegramNotifier
 from strategy.scanner import TrendScanner
-from dashboard.app import start_health_check
 from core.state_manager import StateManager
 import os
+import sys
 
-def main():
-    start_health_check()
+def run_scanner():
+    """Funcion principal del scanner de mercado"""
     print("--- INICIANDO BITGET TREND SNIPER v1.0 ---")
     
     connector = BitgetConnector()
@@ -15,13 +15,13 @@ def main():
     scanner = TrendScanner(connector)
     state = StateManager()
     
-    # Configuración de rate limiting desde .env
+    # Configuracion de rate limiting desde .env
     SYMBOL_DELAY = int(os.getenv("SYMBOL_DELAY_SECONDS", "3"))  # 3s por defecto
     SCAN_INTERVAL = int(os.getenv("SCAN_INTERVAL_SECONDS", "600"))  # 10 min por defecto
-    BATCH_SIZE = int(os.getenv("BATCH_SIZE", "50"))  # Pausa cada 50 símbolos
+    BATCH_SIZE = int(os.getenv("BATCH_SIZE", "50"))  # Pausa cada 50 simbolos
     BATCH_PAUSE = int(os.getenv("BATCH_PAUSE_SECONDS", "30"))  # 30s de pausa
     
-    # 1. Probar conexión
+    # 1. Probar conexion
     ok, msg = connector.test_connection()
     print(msg)
     if not ok:
@@ -30,12 +30,12 @@ def main():
 
     notifier.send_log("[OK] Bot iniciado exitosamente. Escaneando mercado 24/7...")
     
-    # Cache para no repetir señales muy seguido
+    # Cache para no repetir senales muy seguido
     last_signals = {} # symbol -> timestamp
 
     while True:
         try:
-            # Obtener todas las monedas (ahora con caché de 30 min)
+            # Obtener todas las monedas (ahora con cache de 30 min)
             symbols = connector.get_all_symbols()
             print(f"\n[SCAN] Analizando {len(symbols)} monedas en Bitget...")
             print(f"[CONFIG] {SYMBOL_DELAY}s/simbolo, pausa cada {BATCH_SIZE} simbolos\n")
@@ -58,14 +58,14 @@ def main():
                 # Actualizar progreso del escaneo
                 state.update_scan_progress(i, len(symbols), symbol)
                 
-                # Evitar señales repetidas (max 1 vez cada 4 horas por moneda)
+                # Evitar senales repetidas (max 1 vez cada 4 horas por moneda)
                 now = time.time()
                 if symbol in last_signals and (now - last_signals[symbol]) < 14400:
                     continue
                 
                 # Regla: La moneda debe seguir a BTC si BTC es fuerte
                 if btc_trend != "NEUTRAL":
-                    # Solo escaneamos la moneda si coincide con la dirección de BTC
+                    # Solo escaneamos la moneda si coincide con la direccion de BTC
                     # para maximizar probabilidad.
                     pass 
 
@@ -74,7 +74,7 @@ def main():
                 if signal:
                     direction, params = signal
                     
-                    # Filtro final: Si BTC está bajista, no mandar Longs.
+                    # Filtro final: Si BTC esta bajista, no mandar Longs.
                     if btc_trend == "BAJISTA" and direction == "LONG": continue
                     if btc_trend == "ALCISTA" and direction == "SHORT": continue
                     
@@ -84,10 +84,10 @@ def main():
                     last_signals[symbol] = now
                     signals_found += 1
                 
-                # Delay entre símbolos (3-5 segundos para evitar rate limit)
+                # Delay entre simbolos (3-5 segundos para evitar rate limit)
                 time.sleep(SYMBOL_DELAY)
                 
-                # Batch processing: pausa cada N símbolos
+                # Batch processing: pausa cada N simbolos
                 if i % BATCH_SIZE == 0 and i < len(symbols):
                     print(f"\n[BATCH] Pausa de batch ({i}/{len(symbols)}) - esperando {BATCH_PAUSE}s...\n")
                     time.sleep(BATCH_PAUSE)
@@ -103,5 +103,5 @@ def main():
             time.sleep(60)
 
 if __name__ == "__main__":
-    main()
-
+    # Ejecutar scanner en modo standalone
+    run_scanner()

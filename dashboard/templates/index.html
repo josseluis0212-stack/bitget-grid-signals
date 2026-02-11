@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bitget Trend Sniper - Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">📊</div>
+                    <div>
+                        <h1>Bitget Trend Sniper</h1>
+                        <p class="subtitle">Sistema de Señales Automáticas</p>
+                    </div>
+                </div>
+                <div class="status-badge">
+                    <span class="status-dot"></span>
+                    <span id="bot-status">Conectando...</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Grid -->
+        <div class="dashboard-grid">
+            <!-- BTC Panel -->
+            <div class="card btc-card">
+                <div class="card-header">
+                    <h2>Bitcoin (BTC)</h2>
+                    <span class="update-time" id="last-update">Actualizando...</span>
+                </div>
+                <div class="btc-content">
+                    <div class="btc-price-section">
+                        <div class="btc-price" id="btc-price">$0.00</div>
+                        <div class="btc-change" id="btc-change">+0.00%</div>
+                    </div>
+                    <div class="btc-trend-badge" id="btc-trend">
+                        <span class="trend-icon">●</span>
+                        <span class="trend-text">NEUTRAL</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scanning Panel -->
+            <div class="card scanning-card">
+                <div class="card-header">
+                    <h2>Escaneo en Progreso</h2>
+                    <div class="pulse-indicator" id="scan-pulse"></div>
+                </div>
+                <div class="scanning-content">
+                    <div class="current-coin" id="current-coin">
+                        <span class="coin-label">Analizando:</span>
+                        <span class="coin-name">Esperando...</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                    </div>
+                    <div class="progress-text" id="progress-text">0 / 0 monedas</div>
+                </div>
+            </div>
+
+            <!-- Stats Panel -->
+            <div class="card stats-card">
+                <div class="card-header">
+                    <h2>Estadísticas Hoy</h2>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="total-signals">0</div>
+                        <div class="stat-label">Señales Totales</div>
+                    </div>
+                    <div class="stat-item stat-long">
+                        <div class="stat-value" id="long-signals">0</div>
+                        <div class="stat-label">LONG</div>
+                    </div>
+                    <div class="stat-item stat-short">
+                        <div class="stat-value" id="short-signals">0</div>
+                        <div class="stat-label">SHORT</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="uptime">0h</div>
+                        <div class="stat-label">Uptime</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Signals Panel -->
+            <div class="card signals-card">
+                <div class="card-header">
+                    <h2>Últimas Señales</h2>
+                </div>
+                <div class="signals-list" id="signals-list">
+                    <div class="no-signals">
+                        <span class="no-signals-icon">🔍</span>
+                        <p>No se han encontrado señales aún</p>
+                        <small>El bot está escaneando el mercado...</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>🚀 Bot operando 24/7 en la nube | Última actualización: <span id="footer-update">--:--</span></p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+
+</html>

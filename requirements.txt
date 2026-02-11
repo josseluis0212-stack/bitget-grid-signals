@@ -1,4 +1,4 @@
-ccxt==4.0.0
+ccxt>=4.4.0
 python-telegram-bot==20.0
 pandas
 pandas_ta
@@ -6,3 +6,4 @@ python-dotenv
 flask
 gunicorn
 pyyaml
+
