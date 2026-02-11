@@ -17,70 +17,111 @@ class TrendScanner:
         if df.empty or len(df) < 50: return "NEUTRAL"
         
         last = df.iloc[-1]
+        
+        # Filtro de tendencia opcional para asegurar que no vamos contra tendencia fuerte
         if last['close'] > last['ema_50']:
             return "ALCISTA"
         elif last['close'] < last['ema_50']:
             return "BAJISTA"
         return "NEUTRAL"
 
-    def check_triple_alignment(self, symbol):
-        """Verifica la triple alineación: Diario, 1H, 15m."""
-        trend_d = self.get_trend(symbol, '1d')
-        if trend_d == "NEUTRAL": return None
+    def check_rebound(self, symbol):
+        """
+        Estrategia Sniper Reversion:
+        Fase 1: Detección de Extremos (1H)
+        Fase 2: Confirmación de Rebote / Ruptura de Estructura (15m)
+        """
+        # 1. Fase 1: Análisis de 1H para Extremos
+        klines_1h = self.connector.get_ohlcv(symbol, '1h', limit=100)
+        df_1h = Indicators.klines_to_df(klines_1h)
+        df_1h = Indicators.add_signals(df_1h)
         
-        trend_1h = self.get_trend(symbol, '1h')
-        if trend_1h != trend_d: return None
+        if df_1h.empty or len(df_1h) < 30: return None
         
-        # 15m Gatillo y Volumen
-        klines_15m = self.connector.get_ohlcv(symbol, '15m', limit=100)
-        df = Indicators.klines_to_df(klines_15m)
-        df = Indicators.add_signals(df)
+        last_1h = df_1h.iloc[-1]
         
-        if df.empty or len(df) < 50: return None
+        # Filtros de Fase 1 (Al menos 2 de 3)
+        long_conds = [
+            last_1h['rsi'] < 30,
+            last_1h['close'] <= last_1h['bb_lower'],
+            last_1h['volume'] > last_1h['vol_ma'] * 1.5
+        ]
         
-        last = df.iloc[-1]
-        prev = df.iloc[-2]
+        short_conds = [
+            last_1h['rsi'] > 70,
+            last_1h['close'] >= last_1h['bb_upper'],
+            last_1h['volume'] > last_1h['vol_ma'] * 1.5
+        ]
         
-        # Alineación 15m
-        trend_15m = "ALCISTA" if last['close'] > last['ema_50'] else "BAJISTA"
-        if trend_15m != trend_d: return None
-        
-        # Gatillo EMA 8/21
-        cruce_long = prev['ema_fast'] <= prev['ema_slow'] and last['ema_fast'] > last['ema_slow']
-        cruce_short = prev['ema_fast'] >= prev['ema_slow'] and last['ema_fast'] < last['ema_slow']
-        
-        # Confirmación de Volumen
-        vol_ok = last['volume'] > last['vol_ma']
-        
-        if trend_d == "ALCISTA" and cruce_long and vol_ok:
-            return "LONG", self.calculate_grid_params(df, "LONG")
+        potential_direction = None
+        if sum(long_conds) >= 2:
+            potential_direction = "LONG"
+        elif sum(short_conds) >= 2:
+            potential_direction = "SHORT"
             
-        if trend_d == "BAJISTA" and cruce_short and vol_ok:
-            return "SHORT", self.calculate_grid_params(df, "SHORT")
-            
+        if not potential_direction: return None
+        
+        # 2. Fase 2: Confirmación en 15m (Ruptura de Estructura)
+        klines_15m = self.connector.get_ohlcv(symbol, '15m', limit=50)
+        df_15m = Indicators.klines_to_df(klines_15m)
+        df_15m = Indicators.add_signals(df_15m)
+        
+        if df_15m.empty or len(df_15m) < 10: return None
+        
+        last_15m = df_15m.iloc[-1]
+        # Buscar el ultimo swing high/low para confirmar ruptura
+        if potential_direction == "LONG":
+            # Ruptura del máximo de las últimas 5 velas de 15m
+            recent_max = df_15m.iloc[-6:-1]['high'].max()
+            if last_15m['close'] > recent_max:
+                return "LONG", self.calculate_grid_params(symbol, df_15m, "LONG")
+        else:
+            # Ruptura del mínimo de las últimas 5 velas de 15m
+            recent_min = df_15m.iloc[-6:-1]['low'].min()
+            if last_15m['close'] < recent_min:
+                return "SHORT", self.calculate_grid_params(symbol, df_15m, "SHORT")
+        
         return None
 
-    def calculate_grid_params(self, df_15m, direction):
-        """Calcula el rango y grids sugeridos."""
-        last_price = df_15m.iloc[-1]['close']
-        atr = df_15m.iloc[-1]['atr']
+    def check_triple_alignment(self, symbol):
+        """Metodo de compatibilidad - ahora usa rebote."""
+        return self.check_rebound(symbol)
+
+    def calculate_grid_params(self, symbol, df_ref, direction):
+        """Calcula el rango y grids sugeridos con precision dinamica."""
+        last = df_ref.iloc[-1]
+        last_price = last['close']
         
-        # Rango basado en ATR (3x ATR para amplitud de grid)
-        range_size = atr * 3.5 
+        # Obtener ADX para ver si estamos en rango o tendencia
+        adx = last.get('adx', 25)
         
-        if direction == "LONG":
-            min_p = last_price - (range_size * 0.3) # 30% abajo
-            max_p = last_price + (range_size * 0.7) # 70% arriba (buscando la tendencia)
+        # Precision del simbolo
+        precision = 4
+        markets = self.connector.exchange.markets
+        if symbol in markets:
+            precision = markets[symbol]['precision']['price']
+        
+        if adx < 20:
+            # Escenario Consolidación: Rango más ancho
+            min_p = last_price * 0.94
+            max_p = last_price * 1.06
+            grid_count = 100
+            mode = "CONSOLIDACION"
         else:
-            min_p = last_price - (range_size * 0.7) # 70% abajo
-            max_p = last_price + (range_size * 0.3) # 30% arriba
+            # Escenario Reversión (Sniper): Rango ajustado
+            if direction == "LONG":
+                min_p = last_price * 0.985
+                max_p = last_price * 1.05
+            else:
+                min_p = last_price * 0.95
+                max_p = last_price * 1.015
+            grid_count = 50
+            mode = "SNIPER"
             
-        # Asegurar balance
-        grid_count = 35 # Valor por defecto seguro para 5x
-        
         return {
-            "min": round(min_p, 4),
-            "max": round(max_p, 4),
+            "min": round(min_p, precision),
+            "max": round(max_p, precision),
             "grids": grid_count,
-            "last_price": last_price
+            "last_price": last_price,
+            "mode": mode
         }
